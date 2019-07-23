@@ -10,11 +10,10 @@ import tensorflow as tf
 
 FLAGS = None
 
-def refresh_board(log_dir):
+def pred_writer(log_dir):
   file = open('/root/tensorboard/tensorboard/plugins/inference/cache/cache_each_label_acc.png', 'rb')
   data = file.read()
   file.close()
-  print("load the file")
   image = tf.image.decode_png(data, channels=4)
   image = tf.expand_dims(image, 0)
 
@@ -28,13 +27,44 @@ def refresh_board(log_dir):
   writer.close()
   sess.close()
 
-def run(log_dir):
+def fea_writer(log_dir,image1,image2,image3,image4):
+  sess = tf.Session()
+  writer = tf.summary.FileWriter(log_dir)
+  #print(image.get_shape())
+  summary_op = tf.summary.image("conv1_16", image1, max_outputs=3)
+  summary = sess.run(summary_op)
+  writer.add_summary(summary)
+
+  summary_op = tf.summary.image("pool1_16", image2, max_outputs=3)
+  summary = sess.run(summary_op)
+  writer.add_summary(summary)
+
+  summary_op = tf.summary.image("conv2_32", image3, max_outputs=3)
+  summary = sess.run(summary_op)
+  writer.add_summary(summary)
+  summary_op = tf.summary.image("pool2_32", image4, max_outputs=3)
+  summary = sess.run(summary_op)
+  writer.add_summary(summary)
+  writer.close()
+  sess.close()
+
+
+def pred_refresh(log_dir):
   if tf.gfile.Exists(log_dir):
     tf.gfile.DeleteRecursively(log_dir)
   tf.gfile.MakeDirs(log_dir)
   with tf.Graph().as_default():
-    refresh_board(log_dir)
+    pred_writer(log_dir)
     print("done!")
+
+def fea_refresh(log_dir,image1,image2,image3,image4):
+  if tf.gfile.Exists(log_dir):
+    tf.gfile.DeleteRecursively(log_dir)
+  tf.gfile.MakeDirs(log_dir)
+  fea_writer(log_dir,image1,image2,image3,image4)
+  print("done!")
+
+
 '''
 def main(_):
   if tf.gfile.Exists(FLAGS.log_dir):

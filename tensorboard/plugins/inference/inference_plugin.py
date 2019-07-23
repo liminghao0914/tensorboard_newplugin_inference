@@ -340,8 +340,8 @@ class InferencePlugin(base_plugin.TBPlugin):
   def _serve_train_process(self, request):
     #os.system("python ~/tensorflow/tensorflow/examples/tutorials/mnist/mnist_with_summaries.py --log_dir /tmp/mnist")
     print(request.form['modelpath'],request.form['datapath'],request.form['batchsize'])
-    train_process = train(request.form['modelpath'],request.form['datapath'],request.form['batchsize'],'c')
-    result = train_process.classification()
+    train_process = train(request.form['modelpath'],request.form['datapath'],request.form['batchsize'],request.form['modeltype'])
+    result = train_process.start()
     if result=="success!":
       return http_util.Respond(request, {'ifAccomplished' : True}, 'application/json')
     else:
