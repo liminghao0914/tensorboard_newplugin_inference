@@ -46,44 +46,6 @@ TensorFlow run.
             >Show actual image size</paper-checkbox>
           </div>
         </div>
-        <div class="sidebar-section">
-          <h3 class="tooltip-container">Brightness adjustment</h3>
-          <div class="resettable-slider-container">
-            <paper-slider
-              min="0"
-              max="2"
-              snaps
-              pin
-              step="0.01"
-              value="{{_brightnessAdjustment}}"
-              immediate-value="{{_brightnessAdjustment}}"
-            ></paper-slider>
-            <paper-button
-              class="x-button"
-              on-tap="_resetBrightness"
-              disabled="[[_brightnessIsDefault]]"
-            >Reset</paper-button>
-          </div>
-        </div>
-        <div class="sidebar-section">
-        <h3 class="tooltip-container">Contrast adjustment</h3>
-          <div class="resettable-slider-container">
-            <paper-slider
-              min="0"
-              max="500"
-              snaps
-              pin
-              step="1"
-              value="{{_contrastPercentage}}"
-              immediate-value="{{_contrastPercentage}}"
-            ></paper-slider>
-            <paper-button
-              class="x-button"
-              on-tap="_resetContrast"
-              disabled="[[_contrastIsDefault]]"
-            >Reset</paper-button>
-          </div>
-        </div>
 	<div class="sidebar-section">
         <form is="iron-form" id="form" method="post">
 	<div class="flex-holder">
@@ -106,7 +68,19 @@ TensorFlow run.
             id = "batchsize"
             name = "batchsize"
             required type = "number"
+            value = "1024"
           ></papper-input>
+        </div>
+        <div class="allcontrols">
+        <div class="control-holder">
+          <div class="title">Model Type</div>
+            <paper-radio-group selected="{{modelType}}">
+              <paper-radio-button name="ckpt" value="ckpt">ckpt</paper-radio-button>
+              <paper-radio-button name="onnx" value="onnx">onnx</paper-radio-button>
+              <paper-radio-button name="pb" value="pb" disabled>pb</paper-radio-button>
+              <paper-radio-button name="h5" value="h5" disabled>h5</paper-radio-button>
+            </paper-radio-group>
+        </div>
         </div>
 	<div class="accept-button-holder">
         <paper-button raised on-click="submitForm">
@@ -178,6 +152,33 @@ TensorFlow run.
     </tf-dashboard-layout>
     <style include="dashboard-style"></style>
     <style>
+      .allcontrols {
+        padding: 0 2px 2px;
+        flex-grow: 1;
+        overflow-y: auto;
+      }
+      .control-holder .icon-button {
+        font-size: 6px;
+        margin: 0 -0.5px;
+        padding: 0.5px;
+      }
+      .allcontrols .control-holder {
+        clear: both;
+        display: flex;
+        justify-content: space-between;
+      }
+      .allcontrols .control-holder paper-radio-group {
+        margin-right: 80px;
+      }
+      .title {
+        font-size: 14px;
+        margin: 0.8px 0.5px 0.8px 0;
+        color: black;
+      }
+      table.control-holder {
+        border: 0;
+        border-collapse: collapse;
+      }
       .resettable-slider-container {
         display: flex;
       }
@@ -207,6 +208,14 @@ TensorFlow run.
       .no-data-warning {
         max-width: 540px;
         margin: 80px auto 0 auto;
+      }
+      paper-dropdown-menu {
+        flex-grow: 1;
+      }
+      paper-radio-button {
+        font-size: 9px;
+        display: block;
+        padding: 5px;
       }
       paper-slider {
         --paper-slider-active-color: var(--tb-orange-strong);
@@ -249,11 +258,13 @@ TensorFlow run.
         _tagFilter: String,
         _brightnessIsDefault: {
           type: Boolean,
-          computed: '_computeBrightnessIsDefault(_brightnessAdjustment)',
+          //computed: '_computeBrightnessIsDefault(_brightnessAdjustment)',
+          value: true,
         },
         _contrastIsDefault: {
           type: Boolean,
-          computed: '_computeContrastIsDefault(_contrastPercentage)',
+          //computed: '_computeContrastIsDefault(_contrastPercentage)',
+          value: true,
         },
 
         // Categories must only be computed after _dataNotFound is found to be
@@ -268,6 +279,13 @@ TensorFlow run.
         _requestManager: {
           type: Object,
           value: () => new tf_backend.RequestManager(),
+        },
+        modelType: {
+          type: String,
+          value: tf_storage.getStringInitializer(
+            'modelType', {defaultValue: 'ckpt'}),
+          observer: 'modelTypeChanged_',
+          notify: true,
         },
       },
 
@@ -341,16 +359,21 @@ TensorFlow run.
       _tagMetadata(runToTagInfo, run, tag) {
         return runToTagInfo[run][tag];
       },
+      modelTypeChanged_: tf_storage.getStringObserver(
+        'modelType', {defaultValue: 'ckpt'}),
       submitForm: function() {
-                var model = this.$.modelpath.value;
+                var modelpath = this.$.modelpath.value;
                 var data = this.$.datapath.value;
                 var batch = this.$.batchsize.value;
-                if(model != "" && data != ""){ // whatever input check                   
+                var modeltype = this.modelType;
+                console.log(this.modelType);
+                if(modelpath != "" && data != ""){ // whatever input check                   
                     const url = tf_backend.getRouter().pluginRoute('inference', '/trainprocess');
                     //this.$.form.submit();
-                    var train_result = this._requestManager.request(url,{'modelpath':model,'datapath':data,'batchsize':batch})
+                    var train_result = this._requestManager.request(url,{'modelpath':modelpath,'datapath':data,'batchsize':batch,'modeltype':modeltype})
                     console.log(train_result);
-                    setTimeout(this.$.form.submit(), 5000);//delay
+                    alert("start!")
+                    this.$.form.submit();
                     /*if(!train_result['ifAccomplished']){
                         alert("s0mething wr0ng!")
                     }*/
