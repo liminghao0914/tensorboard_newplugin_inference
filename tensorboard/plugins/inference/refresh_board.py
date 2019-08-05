@@ -7,7 +7,7 @@ import os
 import sys
 
 import tensorflow as tf
-
+import numpy as np
 FLAGS = None
 
 def pred_writer(log_dir):
@@ -28,9 +28,10 @@ def pred_writer(log_dir):
   sess.close()
 
 def fea_writer(log_dir,image1,image2,image3,image4):
+  init_x = tf.placeholder(tf.float32,[None,28,28,1])
+  x = tf.reshape(init_x, [-1, 784])
   sess = tf.Session()
   writer = tf.summary.FileWriter(log_dir)
-  #print(image.get_shape())
   summary_op = tf.summary.image("conv1_16", image1, max_outputs=3)
   summary = sess.run(summary_op)
   writer.add_summary(summary)
@@ -42,6 +43,7 @@ def fea_writer(log_dir,image1,image2,image3,image4):
   summary_op = tf.summary.image("conv2_32", image3, max_outputs=3)
   summary = sess.run(summary_op)
   writer.add_summary(summary)
+
   summary_op = tf.summary.image("pool2_32", image4, max_outputs=3)
   summary = sess.run(summary_op)
   writer.add_summary(summary)
@@ -64,7 +66,19 @@ def fea_refresh(log_dir,image1,image2,image3,image4):
   fea_writer(log_dir,image1,image2,image3,image4)
   print("done!")
 
+'''
+  summary_op = tf.summary.image("pool1_16", image2, max_outputs=3)
+  summary = sess.run(summary_op)
+  writer.add_summary(summary)
 
+  summary_op = tf.summary.image("conv2_32", image3, max_outputs=3)
+  summary = sess.run(summary_op)
+  writer.add_summary(summary)
+
+  summary_op = tf.summary.image("pool2_32", image4, max_outputs=3)
+  summary = sess.run(summary_op)
+  writer.add_summary(summary)
+'''
 '''
 def main(_):
   if tf.gfile.Exists(FLAGS.log_dir):

@@ -21,6 +21,8 @@ from __future__ import print_function
 import collections
 import imghdr
 
+import requests
+
 import six
 from six.moves import urllib
 from werkzeug import wrappers
@@ -30,7 +32,7 @@ from tensorboard.backend import http_util
 from tensorboard.plugins import base_plugin
 from tensorboard.plugins.inference import metadata
 from tensorboard.compat import tf
-from tensorboard.plugins.inference.inference_loader import train
+from tensorboard.plugins.inference.inference_loader import Infer,Common
 import os
 
 _IMGHDR_TO_MIMETYPE = {
@@ -53,6 +55,8 @@ def detect_svg(data, f):
 
 imghdr.tests.append(detect_svg)
 
+channel_num,selectImg = 0,0
+imgsrc = ""
 
 class InferencePlugin(base_plugin.TBPlugin):
   """Images Plugin for TensorBoard."""
@@ -67,32 +71,21 @@ class InferencePlugin(base_plugin.TBPlugin):
     """
     self._multiplexer = context.multiplexer
     self._db_connection_provider = context.db_connection_provider
+    self.infer=None
 
   def get_plugin_apps(self):
     return {
         '/images': self._serve_image_metadata,
         '/individualImage': self._serve_individual_image,
-        '/trainprocess':self._serve_train_process,
+        '/cleartags': self._serve_clear_tags,
+        '/distribution':self._serve_distribution,
+        '/channelinfo':self._serve_channel_info,
+        '/splitimg':self._serve_split_img,
         '/tags': self._serve_tags,
     }
 
   def is_active(self):
-    """The images plugin is active iff any run has at least one relevant tag."""
-    if self._db_connection_provider:
-      # The plugin is active if one relevant tag can be found in the database.
-      db = self._db_connection_provider()
-      cursor = db.execute(
-          '''
-          SELECT 1
-          FROM Tags
-          WHERE Tags.plugin_name = ?
-          LIMIT 1
-          ''',
-          (metadata.PLUGIN_NAME,))
-      return bool(list(cursor))
-    if not self._multiplexer:
-      return False
-    return bool(self._multiplexer.PluginRunToTagToContent(metadata.PLUGIN_NAME))
+    return True
 
   def frontend_metadata(self):
     return super(InferencePlugin, self).frontend_metadata()._replace(
@@ -337,15 +330,38 @@ class InferencePlugin(base_plugin.TBPlugin):
     return http_util.Respond(request, data, content_type)
 
   @wrappers.Request.application
-  def _serve_train_process(self, request):
+  def _serve_clear_tags(self,request):
+    path = request.form['path']
+    c = Common(path)
+    result = c.delete()
+    return http_util.Respond(request, result, 'application/json')
+
+  @wrappers.Request.application
+  def _serve_channel_info(self,request):
+    selected_channel = selectImg
+    layer_channel = channel_num
+    data = self.infer.config(selected_channel,layer_channel)
+    print(data)
+    return http_util.Respond(request, data, 'application/json')
+
+  @wrappers.Request.application
+  def _serve_distribution(self, request):
     #os.system("python ~/tensorflow/tensorflow/examples/tutorials/mnist/mnist_with_summaries.py --log_dir /tmp/mnist")
     print(request.form['modelpath'],request.form['datapath'],request.form['batchsize'])
-    train_process = train(request.form['modelpath'],request.form['datapath'],request.form['batchsize'],request.form['modeltype'])
-    result = train_process.start()
-    if result=="success!":
-      return http_util.Respond(request, {'ifAccomplished' : True}, 'application/json')
-    else:
-      return http_util.Respond(request, {'ifAccomplished' : False}, 'application/json')
+    self.infer = Infer(request.form['modelpath'],request.form['modeltype'])
+    result = self.infer.start(request.form['datapath'],request.form['batchsize'])
+    print(result)
+    return http_util.Respond(request, result, 'application/json')
+
+  @wrappers.Request.application
+  def _serve_split_img(self, request):
+    global channel_num,selectImg,imgsrc
+    if(len(request.form)==0):
+      return http_util.Respond(request, {'selectImg': selectImg,'channel': channel_num, 'imgsrc': imgsrc}, 'application/json')
+    channel_num = request.form['channel']
+    selectImg = request.form['selectImg']
+    imgsrc = request.form['imgsrc']
+    return http_util.Respond(request, {'selectImg': selectImg,'channel': channel_num, 'imgsrc': imgsrc}, 'application/json')
 
   @wrappers.Request.application
   def _serve_tags(self, request):

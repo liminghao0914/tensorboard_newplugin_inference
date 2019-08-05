@@ -57,12 +57,21 @@ class Inference(object):
       img_out = np.concatenate((img_out,img_out_list[k+1]))
     return img_out
 
+  def generate_tensor_single(self,conv):
+    g = tf.Graph()     
+    with tf.Session(graph=g) as sess:
+      #conv_transpose = sess.run(tf.transpose(conv, [3, 1, 2, 0]))
+      conv1_channel = sess.run(tf.transpose(conv[15], [2, 0, 1]))
+    tensor_conv = tf.convert_to_tensor(conv1_channel)[:, :, :, np.newaxis]
+    return tensor_conv
+
   def generate_tensor(self,conv):
     g = tf.Graph()     
     with tf.Session(graph=g) as sess:
       conv_transpose = sess.run(tf.transpose(conv, [3, 2, 1, 0]))
     with tf.Session(graph=g) as sess:
-      conv_concact = sess.run(tf.transpose(self.concact_features(conv_transpose), [2, 1, 0])) 
+      conv_concact = sess.run(tf.transpose(self.concact_features(conv_transpose), [2, 1, 0]))
+      
     tensor_conv = tf.convert_to_tensor(conv_concact)[:, :, :, np.newaxis]
     return tensor_conv
 
@@ -74,24 +83,45 @@ class Inference(object):
     sv = tf.train.Supervisor()
     with sv.managed_session() as sess:
       test_x, test_label=sess.run([img,label])
-    acc = self.sess.run(self.net.accuracy,feed_dict = {self.net.init_x:test_x,self.net.label:test_label})
+    #acc = self.sess.run(self.net.accuracy,feed_dict = {self.net.init_x:test_x,self.net.label:test_label})
     y = self.sess.run(self.net.y,feed_dict = {self.net.init_x:test_x})
+    values = self.sess.run(self.net.variable_names)
+    print((np.array(values)).shape,(np.array(values[0])).shape,(np.array(values[1])).shape,(np.array(values[2])).shape,(np.array(values[3])).shape,(np.array(values[4])).shape,(np.array(values[5])).shape,(np.array(values[6])).shape,(np.array(values[7])).shape)
+    h_conv1_dist=values[2]
+    h_conv1_dist = np.transpose(h_conv1_dist, (2,3,0,1))
+    h_conv1_dist = np.reshape(h_conv1_dist, (-1,25))
+    print(h_conv1_dist[3],(np.array(h_conv1_dist)).shape)
     y_label = []
     y_pred = []
     for i in range(batchsize):
       y_label.append(np.argmax(test_label[i]))
       y_pred.append(np.argmax(y[i]))
     eachlabelacc = self.each_label_acc(y_label,y_pred)
-    print(eachlabelacc)
-    print("准确率: %.3f，共测试了%d张图片 " % (acc, len(test_label)))
-    plt.bar(range(len(eachlabelacc)), eachlabelacc)
-    try:
-      plt.savefig("/root/tensorboard/tensorboard/plugins/inference/cache/cache_each_label_acc.png")
-    except:
-      print("failed to generate the figure")
-    #os.system("python /root/tensorbsoard/tensorboard/plugins/inference/refresh_board.py --log_dir /tmp/mnist")
-    pred_refresh("/tmp/mnist/prediction")
-    self.ifDone = True
+    label = [0,1,2,3,4,5,6,7,8,9]
+    data = []
+    data.append(['label','accuracy'])
+    for i in range(len(eachlabelacc)):
+      data.append([label[i],eachlabelacc[i]])
+    print(eachlabelacc,data)
+    return {'acc': eachlabelacc, 'label': label, 'data':data}
+
+  def channel(self,channel,layer_channel):
+    layer = 0
+    channel = int(channel)
+    layer_channel = int(layer_channel)
+    if(layer_channel==16):
+      layer = 2
+    values = self.sess.run(self.net.variable_names)
+    print((np.array(values)).shape,(np.array(values[0])).shape,(np.array(values[1])).shape,(np.array(values[2])).shape,(np.array(values[3])).shape,(np.array(values[4])).shape,(np.array(values[5])).shape,(np.array(values[6])).shape,(np.array(values[7])).shape)
+    h_conv1_dist = values[layer]
+    h_conv1_dist = np.transpose(h_conv1_dist, (2,3,0,1))
+    h_conv1_dist = np.reshape(h_conv1_dist, (-1,25))
+    weights = np.arange(len(h_conv1_dist[0]))
+    data = []
+    data.append(['weights','figure'])
+    for i in range(len(weights)):
+      data.append([weights[i].tolist(),h_conv1_dist[channel][i].tolist()])
+    return {'data':data}
 
   def feature(self,file_path,batchsize_s):
     batchsize = int(batchsize_s)
@@ -101,7 +131,6 @@ class Inference(object):
     sv = tf.train.Supervisor()
     with sv.managed_session() as sess:
       test_x, test_label=sess.run([img,label])
-#    
     tf.reset_default_graph()
     g = tf.Graph()
     with g.as_default():
@@ -114,6 +143,7 @@ class Inference(object):
     tensor_conv2 = self.generate_tensor(conv2_32)
     tensor_pool2 = self.generate_tensor(pool2_32)
     fea_refresh("/tmp/mnist/feature", tensor_conv1,tensor_pool1,tensor_conv2,tensor_pool2)
+    return {'ifDone':True}
     #fea_refresh("/tmp/mnist/feature", tensor_conv1)
 
 

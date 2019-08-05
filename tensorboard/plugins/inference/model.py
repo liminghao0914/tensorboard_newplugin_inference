@@ -29,6 +29,8 @@ class Network(object):
 
     predict = tf.equal(tf.argmax(self.label,1),tf.argmax(self.y,1))
     self.accuracy = tf.reduce_mean(tf.cast(predict,tf.float32))
+  
+    self.variable_names = [v.name for v in tf.trainable_variables()]
 
   def weight_init(self,shape):
     weights = tf.truncated_normal(shape, stddev=0.1,dtype=tf.float32)
@@ -42,7 +44,7 @@ class Network(object):
     start_index = np.random.randint(0, n_samples - batchsize)
     return (start_index, start_index + batchsize)
 
-  def xavier_init(self,layer1, layer2, constant = 1):
+  def xavier_init(self,layer1, layer2, constant = 1): #random init w
     Min = -constant * np.sqrt(6.0 / (layer1 + layer2))
     Max = constant * np.sqrt(6.0 / (layer1 + layer2))
     return tf.Variable(tf.random_uniform((layer1, layer2), minval = Min, maxval = Max, dtype = tf.float32))
@@ -57,7 +59,7 @@ class HiddenLayers(object):
   def __init__(self, x, fch_nodes, drop_prob):
     self.w_conv1 = self.weight_init([5, 5, 1, 16])                            
     self.b_conv1 = self.biases_init([16])
-    self.h_conv1 = tf.nn.relu(self.conv2d(x, self.w_conv1) + self.b_conv1)    
+    self.h_conv1 = tf.nn.relu(self.conv2d(x, self.w_conv1) + self.b_conv1)  
     self.h_pool1 = self.max_pool_2x2(self.h_conv1)
 
     self.w_conv2 = self.weight_init([5, 5, 16, 32])                             
@@ -70,6 +72,11 @@ class HiddenLayers(object):
     self.b_fc1 = self.biases_init([fch_nodes])
     self.h_fc1 = tf.nn.relu(tf.matmul(self.h_fpool2, self.w_fc1) + self.b_fc1)
     self.h_fc1_drop = tf.nn.dropout(self.h_fc1, keep_prob=drop_prob)
+
+  def transpose(self,conv):
+    print(conv.get_shape())
+    conv_transpose = tf.transpose(conv, [0, 3, 1, 2])
+    return conv_transpose
 
   def weight_init(self,shape):
     weights = tf.truncated_normal(shape, stddev=0.1,dtype=tf.float32)

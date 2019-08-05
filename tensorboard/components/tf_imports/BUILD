@@ -112,6 +112,15 @@ tf_web_library(
 )
 
 tf_web_library(
+    name = "loaderjs",
+    srcs = [
+        "loaderjs.html",
+    ],
+    path = "/tf-imports",
+    visibility = ["//visibility:public"],
+)
+
+tf_web_library(
     name = "plottable",
     srcs = [
         "plottable.d.ts",

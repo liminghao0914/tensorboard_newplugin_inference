@@ -14,7 +14,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 -->
-
+<link rel="import" href="../tf-backend/tf-backend.html">
 <link rel="import" href="../paper-icon-button/paper-icon-button.html">
 <link rel="import" href="../paper-slider/paper-slider.html">
 <link rel="import" href="../paper-spinner/paper-spinner-lite.html">
@@ -34,11 +34,13 @@ tf-image-loader loads an individual image from the TensorBoard backend.
 Right now it always loads the most recent image. We should add support in the
 future for loading older images.
 -->
-<dom-module id="tf-image-loader">
+<dom-module id="tf-inference-loader">
   <template>
     <tf-card-heading
+      isActive="[[isActive]]"
       tag="[[tag]]"
       run="[[run]]"
+      categoryname="[[categoryname]]"
       display-name="[[tagMetadata.displayName]]"
       description="[[tagMetadata.description]]"
       color="[[_runColor]]"
@@ -49,7 +51,7 @@ future for loading older images.
       <template is="dom-if" if="[[_hasAtLeastOneStep]]">
         <div class="heading-row">
           <div class="heading-label">
-            step <span style="font-weight: bold">[[_toLocaleString(_stepValue)]]</span>
+            [[_sliderName]] <span style="font-weight: bold">[[_toLocaleString(_stepValue)]]</span>
           </div>
           <div class="heading-label heading-right datetime">
             <template is="dom-if" if="[[_currentWallTime]]">
@@ -79,12 +81,11 @@ future for loading older images.
 
     <!-- Semantically a button but <img> inside a <button> disallows user to do
     an interesting operation like "Copy Image" in non-Chromium browsers. -->
-    <a id="main-image-container"
+    <a  id="main-image-container"
         role="button"
         aria-label="Toggle actual size"
         aria-expanded$="[[_getAriaExpanded(actualSize)]]"
         on-tap="_handleTap"></a>
-
     <style include="tf-card-heading-style">
       /** Make button a div. */
       button {
@@ -171,6 +172,11 @@ future for loading older images.
         width: 100%;
         height: auto;
       }
+      #main-image-container div{
+        position: absolute;
+        border-bottom:2px dashed #999;
+        z-index:0;
+      }
 
       paper-icon-button {
         color: #2196F3;
@@ -188,15 +194,21 @@ future for loading older images.
     "use strict";
 
     Polymer({
-      is: "tf-image-loader",
+      is: "tf-inference-loader",
       properties: {
+        isActive: Boolean,
         run: String,
         tag: String,
         sample: Number,
         ofSamples: Number,
+        categoryname: String,
+        selectedImg: Number,
         /** @type {{description: string, displayName: string}} */
         tagMetadata: Object,
-
+        imgsrc: String,
+        channel: {
+         type: Number,
+        },
         _runColor: {
           type: String,
           computed: '_computeRunColor(run)',
@@ -214,7 +226,6 @@ future for loading older images.
           type: Number,
           value: 0,
         },
-
         requestManager: Object,
         _metadataCanceller: {
           type: Object,
@@ -269,6 +280,10 @@ future for loading older images.
           type: String,
           computed: "_computeSampleText(sample)",
         },
+        _sliderName: {
+          type: String,
+          computed: "_computeSliderName(run)",
+        },
         _hasMultipleSamples: {
           type: Boolean,
           computed: "_computeHasMultipleSamples(ofSamples)",
@@ -277,12 +292,19 @@ future for loading older images.
           type: Boolean,
           value: false,
         },
+        _mousePosition: {
+          type: Object,
+        },
       },
       observers: [
         "reload(run, tag)",
         "_updateImageUrl(_currentStep, brightnessAdjustment, contrastPercentage)",
       ],
-
+      _computeChannel(categoryname){
+        if(categoryname == "conv1_16"){
+          return 16
+        }
+      },
       _computeRunColor(run) {
         return tf_color_scale.runsColorScale(run);
       },
@@ -308,6 +330,16 @@ future for loading older images.
       },
       _computeSampleText(sample) {
         return `${sample + 1}`;
+      },
+      _computeSliderName(run) {
+        if (run == 'feature') {
+          return "channel"
+        }
+        if (run == 'prediction') {
+          return "each_label_accuracy"
+        }
+        else
+          return "step"
       },
       _computeHasMultipleSamples(ofSamples) {
         return ofSamples > 1;
@@ -335,8 +367,10 @@ future for loading older images.
             return;
           }
           const data = result.value;
+          //console.log(data)
           const steps = data.map(this._createStepDatum.bind(this));
           this.set("_steps", steps);
+          //console.log(result)
           this.set("_stepIndex", steps.length - 1);
         });
         this.requestManager.request(url).then(updateSteps);
@@ -376,17 +410,68 @@ future for loading older images.
           Polymer.dom(mainImageContainer).appendChild(img);
           this.set("_isImageLoading", false);
         }).bind(this);
-
         img.style.filter = `contrast(${contrastPercentage}%) `;
         img.style.filter += `brightness(${brightnessAdjustment})`;
-
         // Load the new image.
         this.set("_isImageLoading", true);
         img.src = currentStep.url;
+        this.set('imgsrc',img.src);
+      },
+      _updateImageBoarder(Bottom,Left,Lenth){
+        const imgboarder=document.createElement("div");
+        const mainImageContainer = this.$$("#main-image-container");
+        console.log(mainImageContainer.length);
+        Polymer.dom(mainImageContainer).appendChild(imgboarder);
+        imgboarder.style.bottom = Bottom + 'px';
+        imgboarder.style.left = Left+'px';
+        imgboarder.style.width = Lenth+'px';
+        imgboarder.style.height = Lenth+'px';
       },
       _handleTap(e) {
-        this.set('actualSize', !this.actualSize);
+        this.set('isActive',false);
+        this.set('channel',this._computeChannel(this.categoryname));
+        //this.set('actualSize', !this.actualSize);
+        var div = this.$$("#main-image-container");
+        var reactObj = div.getBoundingClientRect();
+        var mp = this._mousePosition;
+        var block_num = Math.sqrt(this.channel);
+        var block_l = (reactObj.bottom - reactObj.top)/block_num
+        //console.log(reactObj.top);
+        //console.log(this.channel);
+        for(var i=0;i<block_num;i++){
+          for(var j=0;j<block_num;j++){
+            if(mp['y']>reactObj.top+i*block_l && mp['y']<reactObj.bottom-(block_num-i-1)*block_l && mp['x']>reactObj.left+j*block_l && mp['x']<reactObj.right-(block_num-j-1)*block_l){
+              this.set("selectImg",4*i+j)
+              //console.log(this.selectImg);
+              var Bottom = (block_num-i-1)*block_l;
+              var Left = j*block_l;
+              const url = tf_backend.getRouter().pluginRoute('inference', '/splitimg');
+              var channel = this.requestManager.request(url,{selectImg: this.selectImg, channel: this.channel, imgsrc: this.imgsrc});
+              if(this.isActive==false){
+                //this._updateImageBoarder(Bottom,Left,block_l);
+              }
+            }
+          }
+        }
       },
+    listeners: {
+      'mousedown': '_handleMouseDown',
+      'mousemove': '_handleMouseMove',
+    },
+    _handleMouseMove(e){
+      e.preventDefault();
+      this.set('_mousePosition', this._getPositionRelativeToViewport(e));
+    },
+    _handleMouseDown(e) {
+      e.preventDefault();
+      this.set('_mousePosition', this._getPositionRelativeToViewport(e));
+      //window.addEventListener('mouseup', this._mousePosition);
+      
+    },
+    _getPositionRelativeToViewport(mouseEvent) {
+      //console.log(mouseEvent.clientY)
+      return {x :mouseEvent.clientX,y :mouseEvent.clientY};
+    },
       _toLocaleString(number) {
         // Shows commas (or locale-appropriate punctuation) for large numbers.
         return number.toLocaleString();
